@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GDG Cyber Challenge</title>
+<style>
+:root{--g:#00ff41;--r:#ff1f3d;--bg:#020b04}*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--g);font-family:"Segoe UI",Tahoma,Arial,sans-serif;text-align:center;padding:14px}
+h1{text-shadow:0 0 14px var(--g);font-size:clamp(26px,4vw,52px);margin:8px 0}h2{color:#fff;font-size:clamp(22px,3.4vw,42px);margin:10px 0}
+.p{border:2px solid var(--g);border-radius:14px;padding:14px 20px;margin:12px auto;max-width:1000px;background:rgba(0,18,6,.9);box-shadow:0 0 18px rgba(0,255,65,.3)}
+button,input{font:inherit;font-size:clamp(18px,2.4vw,28px);border-radius:12px;padding:12px 28px;border:2px solid var(--g)}
+button{color:var(--g);background:#001a07;cursor:pointer}button:hover:not(:disabled){background:var(--g);color:#000}
+input{background:#001a07;color:#fff;width:100%;text-align:center;margin:12px 0}
+.hide{display:none!important}.row{display:flex;justify-content:space-between;font-size:clamp(16px,2.2vw,26px)}
+#tb{height:12px;border:1px solid var(--g);border-radius:8px;overflow:hidden;margin:8px 0}#tf{height:100%;background:var(--g);width:100%}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:700px){.grid{grid-template-columns:1fr}}
+.o{color:#fff;border:0;border-radius:12px;padding:18px;font-size:clamp(18px,2.4vw,30px);min-height:70px}
+.c0{background:#c4132f}.c1{background:#1768c9}.c2{background:#b8860b}.c3{background:#0f8a3a}
+.dim{opacity:.25}.win{outline:5px solid #fff;box-shadow:0 0 30px #fff}
+.lb div{display:flex;justify-content:space-between;font-size:clamp(18px,2.6vw,32px);padding:6px 10px;border-bottom:1px solid #0a3}
+.tag{display:inline-block;border:1px solid var(--g);border-radius:20px;padding:4px 14px;margin:4px;font-size:20px}
+</style>
+</head><body>
+<div id="app" class="p"></div>
+<script src="config.js"></script>
+<script>
+/* صفحة الطالب: بتكلّم Firebase بـ REST (طلبات عادية) فمش بتتحسب اتصال متزامن */
+const $=id=>document.getElementById(id);
+const DBU=firebaseConfig.databaseURL.replace(/\/$/,'')+'/game/';
+const api=(p,m,b)=>fetch(DBU+p+'.json',{method:m||'GET',body:b===undefined?undefined:JSON.stringify(b)}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()});
+let id=null,G={state:'lobby',cur:null,me:{}},joined=false,my=null,key='',myName='',lastRev,started=false;
+try{id=localStorage.getItem('pid')}catch(e){}
+if(!id){id='p'+Math.random().toString(36).slice(2,10);try{localStorage.setItem('pid',id)}catch(e){}}
+function el(t,txt,c){const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(c)e.className=c;return e}
+function put(...n){const a=$('app');a.textContent='';n.forEach(x=>a.appendChild(x))}
+function me(){return G.me||{}}
+function rank(){return me().rank||'-'}
+function ensure(){if(joined&&myName&&G.state==='lobby'&&!(G.me&&G.me.name))api('players/'+id,'PUT',{name:myName,score:0}).catch(()=>{})}
+async function load(){const[s,c,m]=await Promise.all([api('state'),api('cur'),api('players/'+id)]);
+ G={state:s||'lobby',cur:c,me:m||{}};render();ensure()}
+async function tick(){try{const r=await api('rev');if(r!==lastRev){lastRev=r;await load()}}catch(e){}
+ setTimeout(tick,1000+Math.random()*500)}
+function start(){if(started)return;started=true;tick()}
+async function join(){const n=$('nm').value.trim().slice(0,20);if(!n)return;
+ try{const p=await api('players/'+id);
+  if(p)await api('players/'+id+'/name','PUT',n);else await api('players/'+id,'PUT',{name:n,score:0});
+  myName=n;joined=true;key='';start();render();await load()}catch(e){alert('مفيش اتصال بالنت، حاول تاني')}}
+function render(){
+ if(!joined){if(key==='j')return;key='j';const i=el('input');i.id='nm';i.placeholder='اكتب اسمك';i.maxLength=20;
+  const b=el('button','ادخل اللعبة');b.onclick=join;return put(el('h1','⚠ GDG Cyber Challenge'),i,b)}
+ const p=me(),c=G.cur,st=G.state;
+ const done=!!(c&&((my&&my.q===c.i)||(p.ans&&p.ans.q===c.i)));
+ const k=st+(c?c.i:'')+(done?'a':'')+(p.score||0)+'|'+(p.lastq==null?'':p.lastq)+'|'+(p.rank||'');if(k===key)return;key=k;
+ if(st==='question'&&c){
+  if(done)return put(el('h1','✔ تم تسجيل إجابتك'),el('h2','استنى باقي اللاعبين...'));
+  const g=el('div',null,'grid');c.o.forEach((t,j)=>{const b=el('button',t,'o c'+j);b.onclick=()=>{
+   my={q:c.i,k:j};api('players/'+id+'/ans','PUT',{q:c.i,k:j,ts:{'.sv':'timestamp'}}).catch(()=>{});key='';render()};g.appendChild(b)});
+  return put(el('h2','السؤال '+(c.i+1)),g)}
+ if(st==='reveal'){const ok=p.lastq===(c&&c.i)&&p.gain>0;
+  return put(el('h1',ok?'✔ إجابة صح!':(done?'✖ إجابة غلط':'⏱ الوقت خلص')),el('h2',ok?'+'+p.gain+' نقطة':'0 نقطة'),el('h2','مجموعك: '+(p.score||0)),el('h2','ترتيبك: '+rank()))}
+ if(st==='end')return put(el('h1','🏆 انتهى التحدي'),el('h2','ترتيبك النهائي: '+rank()),el('h2','نقاطك: '+(p.score||0)));
+ put(el('h1','أنت جوه ✔'),el('h2',p.name||myName||''),el('h2','استنى لما اللعبة تبدأ...'))}
+api('players/'+id).then(p=>{if(p){joined=true;myName=p.name||'';start();load().catch(()=>render())}else render()}).catch(()=>render());
+</script></body></html>
